@@ -1,0 +1,172 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+<title>./bustersAgents.py</title>
+<link rel="stylesheet" type="text/css" href="highlight.css">
+</head>
+<body class="hl">
+<pre class="hl"><span class="hl slc"># bustersAgents.py</span>
+<span class="hl slc"># ----------------</span>
+<span class="hl slc"># Licensing Information:  You are free to use or extend these projects for </span>
+<span class="hl slc"># educational purposes provided that (1) you do not distribute or publish </span>
+<span class="hl slc"># solutions, (2) you retain this notice, and (3) you provide clear </span>
+<span class="hl slc"># attribution to UC Berkeley, including a link to </span>
+<span class="hl slc"># http://inst.eecs.berkeley.edu/~cs188/pacman/pacman.html</span>
+<span class="hl slc"># </span>
+<span class="hl slc"># Attribution Information: The Pacman AI projects were developed at UC Berkeley.</span>
+<span class="hl slc"># The core projects and autograders were primarily created by John DeNero </span>
+<span class="hl slc"># (denero&#64;cs.berkeley.edu) and Dan Klein (klein&#64;cs.berkeley.edu).</span>
+<span class="hl slc"># Student side autograding was added by Brad Miller, Nick Hay, and </span>
+<span class="hl slc"># Pieter Abbeel (pabbeel&#64;cs.berkeley.edu).</span>
+
+
+<span class="hl kwa">import</span> util
+<span class="hl kwa">from</span> game <span class="hl kwa">import</span> Agent
+<span class="hl kwa">from</span> game <span class="hl kwa">import</span> Directions
+<span class="hl kwa">from</span> keyboardAgents <span class="hl kwa">import</span> KeyboardAgent
+<span class="hl kwa">import</span> inference
+<span class="hl kwa">import</span> busters
+
+<span class="hl kwa">class</span> NullGraphics<span class="hl opt">:</span>
+    <span class="hl str">&quot;Placeholder for graphics&quot;</span>
+    <span class="hl kwa">def</span> <span class="hl kwd">initialize</span><span class="hl opt">(</span>self<span class="hl opt">,</span> state<span class="hl opt">,</span> isBlue <span class="hl opt">=</span> <span class="hl kwa">False</span><span class="hl opt">):</span> <span class="hl kwa">pass</span>
+    <span class="hl kwa">def</span> <span class="hl kwd">update</span><span class="hl opt">(</span>self<span class="hl opt">,</span> state<span class="hl opt">):</span>    <span class="hl kwa">pass</span>
+    <span class="hl kwa">def</span> <span class="hl kwd">pause</span><span class="hl opt">(</span>self<span class="hl opt">):</span>    <span class="hl kwa">pass</span>
+    <span class="hl kwa">def</span> <span class="hl kwd">draw</span><span class="hl opt">(</span>self<span class="hl opt">,</span> state<span class="hl opt">):</span>    <span class="hl kwa">pass</span>
+    <span class="hl kwa">def</span> <span class="hl kwd">updateDistributions</span><span class="hl opt">(</span>self<span class="hl opt">,</span> dist<span class="hl opt">):</span>    <span class="hl kwa">pass</span>
+    <span class="hl kwa">def</span> <span class="hl kwd">finish</span><span class="hl opt">(</span>self<span class="hl opt">):</span>    <span class="hl kwa">pass</span>
+
+<span class="hl kwa">class</span> <span class="hl kwd">KeyboardInference</span><span class="hl opt">(</span>inference<span class="hl opt">.</span>InferenceModule<span class="hl opt">):</span>
+    <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">    Basic inference module for use with the keyboard.</span>
+<span class="hl str">    &quot;&quot;&quot;</span>
+    <span class="hl kwa">def</span> <span class="hl kwd">initializeUniformly</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;Begin with a uniform distribution over ghost positions.&quot;</span>
+        self<span class="hl opt">.</span>beliefs <span class="hl opt">=</span> util<span class="hl opt">.</span><span class="hl kwd">Counter</span><span class="hl opt">()</span>
+        <span class="hl kwa">for</span> p <span class="hl kwa">in</span> self<span class="hl opt">.</span>legalPositions<span class="hl opt">:</span> self<span class="hl opt">.</span>beliefs<span class="hl opt">[</span>p<span class="hl opt">] =</span> <span class="hl num">1.0</span>
+        self<span class="hl opt">.</span>beliefs<span class="hl opt">.</span><span class="hl kwd">normalize</span><span class="hl opt">()</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">observe</span><span class="hl opt">(</span>self<span class="hl opt">,</span> observation<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        noisyDistance <span class="hl opt">=</span> observation
+        emissionModel <span class="hl opt">=</span> busters<span class="hl opt">.</span><span class="hl kwd">getObservationDistribution</span><span class="hl opt">(</span>noisyDistance<span class="hl opt">)</span>
+        pacmanPosition <span class="hl opt">=</span> gameState<span class="hl opt">.</span><span class="hl kwd">getPacmanPosition</span><span class="hl opt">()</span>
+        allPossible <span class="hl opt">=</span> util<span class="hl opt">.</span><span class="hl kwd">Counter</span><span class="hl opt">()</span>
+        <span class="hl kwa">for</span> p <span class="hl kwa">in</span> self<span class="hl opt">.</span>legalPositions<span class="hl opt">:</span>
+            trueDistance <span class="hl opt">=</span> util<span class="hl opt">.</span><span class="hl kwd">manhattanDistance</span><span class="hl opt">(</span>p<span class="hl opt">,</span> pacmanPosition<span class="hl opt">)</span>
+            <span class="hl kwa">if</span> emissionModel<span class="hl opt">[</span>trueDistance<span class="hl opt">] &gt;</span> <span class="hl num">0</span><span class="hl opt">:</span> allPossible<span class="hl opt">[</span>p<span class="hl opt">] =</span> <span class="hl num">1.0</span>
+        allPossible<span class="hl opt">.</span><span class="hl kwd">normalize</span><span class="hl opt">()</span>
+        self<span class="hl opt">.</span>beliefs <span class="hl opt">=</span> allPossible
+
+    <span class="hl kwa">def</span> <span class="hl kwd">elapseTime</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl kwa">pass</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">getBeliefDistribution</span><span class="hl opt">(</span>self<span class="hl opt">):</span>
+        <span class="hl kwa">return</span> self<span class="hl opt">.</span>beliefs
+
+
+<span class="hl kwa">class</span> BustersAgent<span class="hl opt">:</span>
+    <span class="hl str">&quot;An agent that tracks and displays its beliefs about ghost positions.&quot;</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">__init__</span><span class="hl opt">(</span> self<span class="hl opt">,</span> index <span class="hl opt">=</span> <span class="hl num">0</span><span class="hl opt">,</span> inference <span class="hl opt">=</span> <span class="hl str">&quot;ExactInference&quot;</span><span class="hl opt">,</span> ghostAgents <span class="hl opt">=</span> <span class="hl kwa">None</span><span class="hl opt">,</span> observeEnable <span class="hl opt">=</span> <span class="hl kwa">True</span><span class="hl opt">,</span> elapseTimeEnable <span class="hl opt">=</span> <span class="hl kwa">True</span><span class="hl opt">):</span>
+        inferenceType <span class="hl opt">=</span> util<span class="hl opt">.</span><span class="hl kwd">lookup</span><span class="hl opt">(</span>inference<span class="hl opt">,</span> <span class="hl kwb">globals</span><span class="hl opt">())</span>
+        self<span class="hl opt">.</span>inferenceModules <span class="hl opt">= [</span><span class="hl kwd">inferenceType</span><span class="hl opt">(</span>a<span class="hl opt">)</span> <span class="hl kwa">for</span> a <span class="hl kwa">in</span> ghostAgents<span class="hl opt">]</span>
+        self<span class="hl opt">.</span>observeEnable <span class="hl opt">=</span> observeEnable
+        self<span class="hl opt">.</span>elapseTimeEnable <span class="hl opt">=</span> elapseTimeEnable
+
+    <span class="hl kwa">def</span> <span class="hl kwd">registerInitialState</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;Initializes beliefs and inference modules&quot;</span>
+        <span class="hl kwa">import</span> __main__
+        self<span class="hl opt">.</span>display <span class="hl opt">=</span> __main__<span class="hl opt">.</span>_display
+        <span class="hl kwa">for</span> inference <span class="hl kwa">in</span> self<span class="hl opt">.</span>inferenceModules<span class="hl opt">:</span> inference<span class="hl opt">.</span><span class="hl kwd">initialize</span><span class="hl opt">(</span>gameState<span class="hl opt">)</span>
+        self<span class="hl opt">.</span>ghostBeliefs <span class="hl opt">= [</span>inf<span class="hl opt">.</span><span class="hl kwd">getBeliefDistribution</span><span class="hl opt">()</span> <span class="hl kwa">for</span> inf <span class="hl kwa">in</span> self<span class="hl opt">.</span>inferenceModules<span class="hl opt">]</span>
+        self<span class="hl opt">.</span>firstMove <span class="hl opt">=</span> <span class="hl kwa">True</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">observationFunction</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;Removes the ghost states from the gameState&quot;</span>
+        agents <span class="hl opt">=</span> gameState<span class="hl opt">.</span>data<span class="hl opt">.</span>agentStates
+        gameState<span class="hl opt">.</span>data<span class="hl opt">.</span>agentStates <span class="hl opt">= [</span>agents<span class="hl opt">[</span><span class="hl num">0</span><span class="hl opt">]] + [</span><span class="hl kwa">None for</span> i <span class="hl kwa">in</span> <span class="hl kwb">range</span><span class="hl opt">(</span><span class="hl num">1</span><span class="hl opt">,</span> <span class="hl kwb">len</span><span class="hl opt">(</span>agents<span class="hl opt">))]</span>
+        <span class="hl kwa">return</span> gameState
+
+    <span class="hl kwa">def</span> <span class="hl kwd">getAction</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;Updates beliefs, then chooses an action based on updated beliefs.&quot;</span>
+        <span class="hl kwa">for</span> index<span class="hl opt">,</span> inf <span class="hl kwa">in</span> <span class="hl kwb">enumerate</span><span class="hl opt">(</span>self<span class="hl opt">.</span>inferenceModules<span class="hl opt">):</span>
+            <span class="hl kwa">if not</span> self<span class="hl opt">.</span>firstMove <span class="hl kwa">and</span> self<span class="hl opt">.</span>elapseTimeEnable<span class="hl opt">:</span>
+                inf<span class="hl opt">.</span><span class="hl kwd">elapseTime</span><span class="hl opt">(</span>gameState<span class="hl opt">)</span>
+            self<span class="hl opt">.</span>firstMove <span class="hl opt">=</span> <span class="hl kwa">False</span>
+            <span class="hl kwa">if</span> self<span class="hl opt">.</span>observeEnable<span class="hl opt">:</span>
+                inf<span class="hl opt">.</span><span class="hl kwd">observeState</span><span class="hl opt">(</span>gameState<span class="hl opt">)</span>
+            self<span class="hl opt">.</span>ghostBeliefs<span class="hl opt">[</span>index<span class="hl opt">] =</span> inf<span class="hl opt">.</span><span class="hl kwd">getBeliefDistribution</span><span class="hl opt">()</span>
+        self<span class="hl opt">.</span>display<span class="hl opt">.</span><span class="hl kwd">updateDistributions</span><span class="hl opt">(</span>self<span class="hl opt">.</span>ghostBeliefs<span class="hl opt">)</span>
+        <span class="hl kwa">return</span> self<span class="hl opt">.</span><span class="hl kwd">chooseAction</span><span class="hl opt">(</span>gameState<span class="hl opt">)</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">chooseAction</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;By default, a BustersAgent just stops.  This should be overridden.&quot;</span>
+        <span class="hl kwa">return</span> Directions<span class="hl opt">.</span>STOP
+
+<span class="hl kwa">class</span> <span class="hl kwd">BustersKeyboardAgent</span><span class="hl opt">(</span>BustersAgent<span class="hl opt">,</span> KeyboardAgent<span class="hl opt">):</span>
+    <span class="hl str">&quot;An agent controlled by the keyboard that displays beliefs about ghost positions.&quot;</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">__init__</span><span class="hl opt">(</span>self<span class="hl opt">,</span> index <span class="hl opt">=</span> <span class="hl num">0</span><span class="hl opt">,</span> inference <span class="hl opt">=</span> <span class="hl str">&quot;KeyboardInference&quot;</span><span class="hl opt">,</span> ghostAgents <span class="hl opt">=</span> <span class="hl kwa">None</span><span class="hl opt">):</span>
+        KeyboardAgent<span class="hl opt">.</span><span class="hl kwd">__init__</span><span class="hl opt">(</span>self<span class="hl opt">,</span> index<span class="hl opt">)</span>
+        BustersAgent<span class="hl opt">.</span><span class="hl kwd">__init__</span><span class="hl opt">(</span>self<span class="hl opt">,</span> index<span class="hl opt">,</span> inference<span class="hl opt">,</span> ghostAgents<span class="hl opt">)</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">getAction</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl kwa">return</span> BustersAgent<span class="hl opt">.</span><span class="hl kwd">getAction</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">)</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">chooseAction</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl kwa">return</span> KeyboardAgent<span class="hl opt">.</span><span class="hl kwd">getAction</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">)</span>
+
+<span class="hl kwa">from</span> distanceCalculator <span class="hl kwa">import</span> Distancer
+<span class="hl kwa">from</span> game <span class="hl kwa">import</span> Actions
+<span class="hl kwa">from</span> game <span class="hl kwa">import</span> Directions
+
+<span class="hl kwa">class</span> <span class="hl kwd">GreedyBustersAgent</span><span class="hl opt">(</span>BustersAgent<span class="hl opt">):</span>
+    <span class="hl str">&quot;An agent that charges the closest ghost.&quot;</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">registerInitialState</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;Pre-computes the distance between every two points.&quot;</span>
+        BustersAgent<span class="hl opt">.</span><span class="hl kwd">registerInitialState</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">)</span>
+        self<span class="hl opt">.</span>distancer <span class="hl opt">=</span> <span class="hl kwd">Distancer</span><span class="hl opt">(</span>gameState<span class="hl opt">.</span>data<span class="hl opt">.</span>layout<span class="hl opt">,</span> <span class="hl kwa">False</span><span class="hl opt">)</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">chooseAction</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">        First computes the most likely position of each ghost that</span>
+<span class="hl str">        has not yet been captured, then chooses an action that brings</span>
+<span class="hl str">        Pacman closer to the closest ghost (in maze distance!).</span>
+<span class="hl str"></span>
+<span class="hl str">        To find the maze distance between any two positions, use:</span>
+<span class="hl str">        self.distancer.getDistance(pos1, pos2)</span>
+<span class="hl str"></span>
+<span class="hl str">        To find the successor position of a position after an action:</span>
+<span class="hl str">        successorPosition = Actions.getSuccessor(position, action)</span>
+<span class="hl str"></span>
+<span class="hl str">        livingGhostPositionDistributions, defined below, is a list of</span>
+<span class="hl str">        util.Counter objects equal to the position belief distributions</span>
+<span class="hl str">        for each of the ghosts that are still alive.  It is defined based</span>
+<span class="hl str">        on (these are implementation details about which you need not be</span>
+<span class="hl str">        concerned):</span>
+<span class="hl str"></span>
+<span class="hl str">          1) gameState.getLivingGhosts(), a list of booleans, one for each</span>
+<span class="hl str">             agent, indicating whether or not the agent is alive.  Note</span>
+<span class="hl str">             that pacman is always agent 0, so the ghosts are agents 1,</span>
+<span class="hl str">             onwards (just as before).</span>
+<span class="hl str"></span>
+<span class="hl str">          2) self.ghostBeliefs, the list of belief distributions for each</span>
+<span class="hl str">             of the ghosts (including ghosts that are not alive).  The</span>
+<span class="hl str">             indices into this list should be 1 less than indices into the</span>
+<span class="hl str">             gameState.getLivingGhosts() list.</span>
+<span class="hl str"></span>
+<span class="hl str">        &quot;&quot;&quot;</span>
+        pacmanPosition <span class="hl opt">=</span> gameState<span class="hl opt">.</span><span class="hl kwd">getPacmanPosition</span><span class="hl opt">()</span>
+        legal <span class="hl opt">= [</span>a <span class="hl kwa">for</span> a <span class="hl kwa">in</span> gameState<span class="hl opt">.</span><span class="hl kwd">getLegalPacmanActions</span><span class="hl opt">()]</span>
+        livingGhosts <span class="hl opt">=</span> gameState<span class="hl opt">.</span><span class="hl kwd">getLivingGhosts</span><span class="hl opt">()</span>
+        livingGhostPositionDistributions <span class="hl opt">= [</span>beliefs <span class="hl kwa">for</span> i<span class="hl opt">,</span>beliefs
+                                            <span class="hl kwa">in</span> <span class="hl kwb">enumerate</span><span class="hl opt">(</span>self<span class="hl opt">.</span>ghostBeliefs<span class="hl opt">)</span>
+                                            <span class="hl kwa">if</span> livingGhosts<span class="hl opt">[</span>i<span class="hl opt">+</span><span class="hl num">1</span><span class="hl opt">]]</span>
+        <span class="hl str">&quot;*** YOUR CODE HERE ***&quot;</span>
+        util<span class="hl opt">.</span><span class="hl kwd">raiseNotDefined</span><span class="hl opt">()</span>
+</pre>
+</body>
+</html>
+<!--HTML generated by highlight 3.8, http://www.andre-simon.de/-->

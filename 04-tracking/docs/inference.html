@@ -1,0 +1,520 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+<title>./inference.py</title>
+<link rel="stylesheet" type="text/css" href="highlight.css">
+</head>
+<body class="hl">
+<pre class="hl"><span class="hl slc"># inference.py</span>
+<span class="hl slc"># ------------</span>
+<span class="hl slc"># Licensing Information:  You are free to use or extend these projects for </span>
+<span class="hl slc"># educational purposes provided that (1) you do not distribute or publish </span>
+<span class="hl slc"># solutions, (2) you retain this notice, and (3) you provide clear </span>
+<span class="hl slc"># attribution to UC Berkeley, including a link to </span>
+<span class="hl slc"># http://inst.eecs.berkeley.edu/~cs188/pacman/pacman.html</span>
+<span class="hl slc"># </span>
+<span class="hl slc"># Attribution Information: The Pacman AI projects were developed at UC Berkeley.</span>
+<span class="hl slc"># The core projects and autograders were primarily created by John DeNero </span>
+<span class="hl slc"># (denero&#64;cs.berkeley.edu) and Dan Klein (klein&#64;cs.berkeley.edu).</span>
+<span class="hl slc"># Student side autograding was added by Brad Miller, Nick Hay, and </span>
+<span class="hl slc"># Pieter Abbeel (pabbeel&#64;cs.berkeley.edu).</span>
+
+
+<span class="hl kwa">import</span> itertools
+<span class="hl kwa">import</span> util
+<span class="hl kwa">import</span> random
+<span class="hl kwa">import</span> busters
+<span class="hl kwa">import</span> game
+
+<span class="hl kwa">class</span> InferenceModule<span class="hl opt">:</span>
+    <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">    An inference module tracks a belief distribution over a ghost's location.</span>
+<span class="hl str">    This is an abstract class, which you should not modify.</span>
+<span class="hl str">    &quot;&quot;&quot;</span>
+
+    <span class="hl slc">############################################</span>
+    <span class="hl slc"># Useful methods for all inference modules #</span>
+    <span class="hl slc">############################################</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">__init__</span><span class="hl opt">(</span>self<span class="hl opt">,</span> ghostAgent<span class="hl opt">):</span>
+        <span class="hl str">&quot;Sets the ghost agent for later access&quot;</span>
+        self<span class="hl opt">.</span>ghostAgent <span class="hl opt">=</span> ghostAgent
+        self<span class="hl opt">.</span>index <span class="hl opt">=</span> ghostAgent<span class="hl opt">.</span>index
+        self<span class="hl opt">.</span>obs <span class="hl opt">= []</span> <span class="hl slc"># most recent observation position</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">getJailPosition</span><span class="hl opt">(</span>self<span class="hl opt">):</span>
+        <span class="hl kwa">return</span> <span class="hl opt">(</span><span class="hl num">2</span> <span class="hl opt">*</span> self<span class="hl opt">.</span>ghostAgent<span class="hl opt">.</span>index <span class="hl opt">-</span> <span class="hl num">1</span><span class="hl opt">,</span> <span class="hl num">1</span><span class="hl opt">)</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">getPositionDistribution</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">        Returns a distribution over successor positions of the ghost from the given gameState.</span>
+<span class="hl str"></span>
+<span class="hl str">        You must first place the ghost in the gameState, using setGhostPosition below.</span>
+<span class="hl str">        &quot;&quot;&quot;</span>
+        ghostPosition <span class="hl opt">=</span> gameState<span class="hl opt">.</span><span class="hl kwd">getGhostPosition</span><span class="hl opt">(</span>self<span class="hl opt">.</span>index<span class="hl opt">)</span> <span class="hl slc"># The position you set</span>
+        actionDist <span class="hl opt">=</span> self<span class="hl opt">.</span>ghostAgent<span class="hl opt">.</span><span class="hl kwd">getDistribution</span><span class="hl opt">(</span>gameState<span class="hl opt">)</span>
+        dist <span class="hl opt">=</span> util<span class="hl opt">.</span><span class="hl kwd">Counter</span><span class="hl opt">()</span>
+        <span class="hl kwa">for</span> action<span class="hl opt">,</span> prob <span class="hl kwa">in</span> actionDist<span class="hl opt">.</span><span class="hl kwd">items</span><span class="hl opt">():</span>
+            successorPosition <span class="hl opt">=</span> game<span class="hl opt">.</span>Actions<span class="hl opt">.</span><span class="hl kwd">getSuccessor</span><span class="hl opt">(</span>ghostPosition<span class="hl opt">,</span> action<span class="hl opt">)</span>
+            dist<span class="hl opt">[</span>successorPosition<span class="hl opt">] =</span> prob
+        <span class="hl kwa">return</span> dist
+
+    <span class="hl kwa">def</span> <span class="hl kwd">setGhostPosition</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">,</span> ghostPosition<span class="hl opt">):</span>
+        <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">        Sets the position of the ghost for this inference module to the specified</span>
+<span class="hl str">        position in the supplied gameState.</span>
+<span class="hl str"></span>
+<span class="hl str">        Note that calling setGhostPosition does not change the position of the</span>
+<span class="hl str">        ghost in the GameState object used for tracking the true progression of</span>
+<span class="hl str">        the game.  The code in inference.py only ever receives a deep copy of the</span>
+<span class="hl str">        GameState object which is responsible for maintaining game state, not a</span>
+<span class="hl str">        reference to the original object.  Note also that the ghost distance</span>
+<span class="hl str">        observations are stored at the time the GameState object is created, so</span>
+<span class="hl str">        changing the position of the ghost will not affect the functioning of</span>
+<span class="hl str">        observeState.</span>
+<span class="hl str">        &quot;&quot;&quot;</span>
+        conf <span class="hl opt">=</span> game<span class="hl opt">.</span><span class="hl kwd">Configuration</span><span class="hl opt">(</span>ghostPosition<span class="hl opt">,</span> game<span class="hl opt">.</span>Directions<span class="hl opt">.</span>STOP<span class="hl opt">)</span>
+        gameState<span class="hl opt">.</span>data<span class="hl opt">.</span>agentStates<span class="hl opt">[</span>self<span class="hl opt">.</span>index<span class="hl opt">] =</span> game<span class="hl opt">.</span><span class="hl kwd">AgentState</span><span class="hl opt">(</span>conf<span class="hl opt">,</span> <span class="hl kwa">False</span><span class="hl opt">)</span>
+        <span class="hl kwa">return</span> gameState
+
+    <span class="hl kwa">def</span> <span class="hl kwd">observeState</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;Collects the relevant noisy distance observation and pass it along.&quot;</span>
+        distances <span class="hl opt">=</span> gameState<span class="hl opt">.</span><span class="hl kwd">getNoisyGhostDistances</span><span class="hl opt">()</span>
+        <span class="hl kwa">if</span> <span class="hl kwb">len</span><span class="hl opt">(</span>distances<span class="hl opt">) &gt;=</span> self<span class="hl opt">.</span>index<span class="hl opt">:</span> <span class="hl slc"># Check for missing observations</span>
+            obs <span class="hl opt">=</span> distances<span class="hl opt">[</span>self<span class="hl opt">.</span>index <span class="hl opt">-</span> <span class="hl num">1</span><span class="hl opt">]</span>
+            self<span class="hl opt">.</span>obs <span class="hl opt">=</span> obs
+            self<span class="hl opt">.</span><span class="hl kwd">observe</span><span class="hl opt">(</span>obs<span class="hl opt">,</span> gameState<span class="hl opt">)</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">initialize</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;Initializes beliefs to a uniform distribution over all positions.&quot;</span>
+        <span class="hl slc"># The legal positions do not include the ghost prison cells in the bottom left.</span>
+        self<span class="hl opt">.</span>legalPositions <span class="hl opt">= [</span>p <span class="hl kwa">for</span> p <span class="hl kwa">in</span> gameState<span class="hl opt">.</span><span class="hl kwd">getWalls</span><span class="hl opt">().</span><span class="hl kwd">asList</span><span class="hl opt">(</span><span class="hl kwa">False</span><span class="hl opt">)</span> <span class="hl kwa">if</span> p<span class="hl opt">[</span><span class="hl num">1</span><span class="hl opt">] &gt;</span> <span class="hl num">1</span><span class="hl opt">]</span>
+        self<span class="hl opt">.</span><span class="hl kwd">initializeUniformly</span><span class="hl opt">(</span>gameState<span class="hl opt">)</span>
+
+    <span class="hl slc">######################################</span>
+    <span class="hl slc"># Methods that need to be overridden #</span>
+    <span class="hl slc">######################################</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">initializeUniformly</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;Sets the belief state to a uniform prior belief over all positions.&quot;</span>
+        <span class="hl kwa">pass</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">observe</span><span class="hl opt">(</span>self<span class="hl opt">,</span> observation<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;Updates beliefs based on the given distance observation and gameState.&quot;</span>
+        <span class="hl kwa">pass</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">elapseTime</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;Updates beliefs for a time step elapsing from a gameState.&quot;</span>
+        <span class="hl kwa">pass</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">getBeliefDistribution</span><span class="hl opt">(</span>self<span class="hl opt">):</span>
+        <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">        Returns the agent's current belief state, a distribution over</span>
+<span class="hl str">        ghost locations conditioned on all evidence so far.</span>
+<span class="hl str">        &quot;&quot;&quot;</span>
+        <span class="hl kwa">pass</span>
+
+<span class="hl kwa">class</span> <span class="hl kwd">ExactInference</span><span class="hl opt">(</span>InferenceModule<span class="hl opt">):</span>
+    <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">    The exact dynamic inference module should use forward-algorithm</span>
+<span class="hl str">    updates to compute the exact belief function at each time step.</span>
+<span class="hl str">    &quot;&quot;&quot;</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">initializeUniformly</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;Begin with a uniform distribution over ghost positions.&quot;</span>
+        self<span class="hl opt">.</span>beliefs <span class="hl opt">=</span> util<span class="hl opt">.</span><span class="hl kwd">Counter</span><span class="hl opt">()</span>
+        <span class="hl kwa">for</span> p <span class="hl kwa">in</span> self<span class="hl opt">.</span>legalPositions<span class="hl opt">:</span> self<span class="hl opt">.</span>beliefs<span class="hl opt">[</span>p<span class="hl opt">] =</span> <span class="hl num">1.0</span>
+        self<span class="hl opt">.</span>beliefs<span class="hl opt">.</span><span class="hl kwd">normalize</span><span class="hl opt">()</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">observe</span><span class="hl opt">(</span>self<span class="hl opt">,</span> observation<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">        Updates beliefs based on the distance observation and Pacman's position.</span>
+<span class="hl str"></span>
+<span class="hl str">        The noisyDistance is the estimated manhattan distance to the ghost you are tracking.</span>
+<span class="hl str"></span>
+<span class="hl str">        The emissionModel below stores the probability of the noisyDistance for any true</span>
+<span class="hl str">        distance you supply.  That is, it stores P(noisyDistance | TrueDistance).</span>
+<span class="hl str"></span>
+<span class="hl str">        self.legalPositions is a list of the possible ghost positions (you</span>
+<span class="hl str">        should only consider positions that are in self.legalPositions).</span>
+<span class="hl str"></span>
+<span class="hl str">        A correct implementation will handle the following special case:</span>
+<span class="hl str">          *  When a ghost is captured by Pacman, all beliefs should be updated so</span>
+<span class="hl str">             that the ghost appears in its prison cell, position self.getJailPosition()</span>
+<span class="hl str"></span>
+<span class="hl str">             You can check if a ghost has been captured by Pacman by</span>
+<span class="hl str">             checking if it has a noisyDistance of None (a noisy distance</span>
+<span class="hl str">             of None will be returned if, and only if, the ghost is</span>
+<span class="hl str">             captured).</span>
+<span class="hl str"></span>
+<span class="hl str">        &quot;&quot;&quot;</span>
+        noisyDistance <span class="hl opt">=</span> observation
+        emissionModel <span class="hl opt">=</span> busters<span class="hl opt">.</span><span class="hl kwd">getObservationDistribution</span><span class="hl opt">(</span>noisyDistance<span class="hl opt">)</span>
+        pacmanPosition <span class="hl opt">=</span> gameState<span class="hl opt">.</span><span class="hl kwd">getPacmanPosition</span><span class="hl opt">()</span>
+
+        <span class="hl str">&quot;*** YOUR CODE HERE ***&quot;</span>
+        util<span class="hl opt">.</span><span class="hl kwd">raiseNotDefined</span><span class="hl opt">()</span>
+
+        <span class="hl slc"># Replace this code with a correct observation update</span>
+        <span class="hl slc"># Be sure to handle the &quot;jail&quot; edge case where the ghost is eaten</span>
+        <span class="hl slc"># and noisyDistance is None</span>
+        allPossible <span class="hl opt">=</span> util<span class="hl opt">.</span><span class="hl kwd">Counter</span><span class="hl opt">()</span>
+        <span class="hl kwa">for</span> p <span class="hl kwa">in</span> self<span class="hl opt">.</span>legalPositions<span class="hl opt">:</span>
+            trueDistance <span class="hl opt">=</span> util<span class="hl opt">.</span><span class="hl kwd">manhattanDistance</span><span class="hl opt">(</span>p<span class="hl opt">,</span> pacmanPosition<span class="hl opt">)</span>
+            <span class="hl kwa">if</span> emissionModel<span class="hl opt">[</span>trueDistance<span class="hl opt">] &gt;</span> <span class="hl num">0</span><span class="hl opt">:</span> allPossible<span class="hl opt">[</span>p<span class="hl opt">] =</span> <span class="hl num">1.0</span>
+
+        <span class="hl str">&quot;*** END YOUR CODE HERE ***&quot;</span>
+
+        allPossible<span class="hl opt">.</span><span class="hl kwd">normalize</span><span class="hl opt">()</span>
+        self<span class="hl opt">.</span>beliefs <span class="hl opt">=</span> allPossible
+
+    <span class="hl kwa">def</span> <span class="hl kwd">elapseTime</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">        Update self.beliefs in response to a time step passing from the current state.</span>
+<span class="hl str"></span>
+<span class="hl str">        The transition model is not entirely stationary: it may depend on Pacman's</span>
+<span class="hl str">        current position (e.g., for DirectionalGhost).  However, this is not a problem,</span>
+<span class="hl str">        as Pacman's current position is known.</span>
+<span class="hl str"></span>
+<span class="hl str">        In order to obtain the distribution over new positions for the</span>
+<span class="hl str">        ghost, given its previous position (oldPos) as well as Pacman's</span>
+<span class="hl str">        current position, use this line of code:</span>
+<span class="hl str"></span>
+<span class="hl str">          newPosDist = self.getPositionDistribution(self.setGhostPosition(gameState, oldPos))</span>
+<span class="hl str"></span>
+<span class="hl str">        Note that you may need to replace &quot;oldPos&quot; with the correct name</span>
+<span class="hl str">        of the variable that you have used to refer to the previous ghost</span>
+<span class="hl str">        position for which you are computing this distribution. You will need to compute</span>
+<span class="hl str">        multiple position distributions for a single update.</span>
+<span class="hl str"></span>
+<span class="hl str">        newPosDist is a util.Counter object, where for each position p in self.legalPositions,</span>
+<span class="hl str"></span>
+<span class="hl str">        newPostDist[p] = Pr( ghost is at position p at time t + 1 | ghost is at position oldPos at time t )</span>
+<span class="hl str"></span>
+<span class="hl str">        (and also given Pacman's current position).  You may also find it useful to loop over key, value pairs</span>
+<span class="hl str">        in newPosDist, like:</span>
+<span class="hl str"></span>
+<span class="hl str">          for newPos, prob in newPosDist.items():</span>
+<span class="hl str">            ...</span>
+<span class="hl str"></span>
+<span class="hl str">        *** GORY DETAIL AHEAD ***</span>
+<span class="hl str"></span>
+<span class="hl str">        As an implementation detail (with which you need not concern</span>
+<span class="hl str">        yourself), the line of code at the top of this comment block for obtaining newPosDist makes</span>
+<span class="hl str">        use of two helper methods provided in InferenceModule above:</span>
+<span class="hl str"></span>
+<span class="hl str">          1) self.setGhostPosition(gameState, ghostPosition)</span>
+<span class="hl str">              This method alters the gameState by placing the ghost we're tracking</span>
+<span class="hl str">              in a particular position.  This altered gameState can be used to query</span>
+<span class="hl str">              what the ghost would do in this position.</span>
+<span class="hl str"></span>
+<span class="hl str">          2) self.getPositionDistribution(gameState)</span>
+<span class="hl str">              This method uses the ghost agent to determine what positions the ghost</span>
+<span class="hl str">              will move to from the provided gameState.  The ghost must be placed</span>
+<span class="hl str">              in the gameState with a call to self.setGhostPosition above.</span>
+<span class="hl str"></span>
+<span class="hl str">        It is worthwhile, however, to understand why these two helper methods are used and how they</span>
+<span class="hl str">        combine to give us a belief distribution over new positions after a time update from a particular position</span>
+<span class="hl str">        &quot;&quot;&quot;</span>
+
+        <span class="hl str">&quot;*** YOUR CODE HERE ***&quot;</span>
+        util<span class="hl opt">.</span><span class="hl kwd">raiseNotDefined</span><span class="hl opt">()</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">getBeliefDistribution</span><span class="hl opt">(</span>self<span class="hl opt">):</span>
+        <span class="hl kwa">return</span> self<span class="hl opt">.</span>beliefs
+
+<span class="hl kwa">class</span> <span class="hl kwd">ParticleFilter</span><span class="hl opt">(</span>InferenceModule<span class="hl opt">):</span>
+    <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">    A particle filter for approximately tracking a single ghost.</span>
+<span class="hl str"></span>
+<span class="hl str">    Useful helper functions will include random.choice, which chooses</span>
+<span class="hl str">    an element from a list uniformly at random, and util.sample, which</span>
+<span class="hl str">    samples a key from a Counter by treating its values as probabilities.</span>
+<span class="hl str">    &quot;&quot;&quot;</span>
+
+
+    <span class="hl kwa">def</span> <span class="hl kwd">__init__</span><span class="hl opt">(</span>self<span class="hl opt">,</span> ghostAgent<span class="hl opt">,</span> numParticles<span class="hl opt">=</span><span class="hl num">300</span><span class="hl opt">):</span>
+        InferenceModule<span class="hl opt">.</span><span class="hl kwd">__init__</span><span class="hl opt">(</span>self<span class="hl opt">,</span> ghostAgent<span class="hl opt">);</span>
+        self<span class="hl opt">.</span><span class="hl kwd">setNumParticles</span><span class="hl opt">(</span>numParticles<span class="hl opt">)</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">setNumParticles</span><span class="hl opt">(</span>self<span class="hl opt">,</span> numParticles<span class="hl opt">):</span>
+        self<span class="hl opt">.</span>numParticles <span class="hl opt">=</span> numParticles
+
+
+    <span class="hl kwa">def</span> <span class="hl kwd">initializeUniformly</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">          Initializes a list of particles. Use self.numParticles for the number of particles.</span>
+<span class="hl str">          Use self.legalPositions for the legal board positions where a particle could be located.</span>
+<span class="hl str">          Particles should be evenly (not randomly) distributed across positions in order to</span>
+<span class="hl str">          ensure a uniform prior.</span>
+<span class="hl str"></span>
+<span class="hl str">          ** NOTE **</span>
+<span class="hl str">            the variable you store your particles in must be a list; a list is simply a collection</span>
+<span class="hl str">            of unweighted variables (positions in this case). Storing your particles as a Counter or</span>
+<span class="hl str">            dictionary (where there could be an associated weight with each position) is incorrect</span>
+<span class="hl str">            and will produce errors</span>
+<span class="hl str">        &quot;&quot;&quot;</span>
+        <span class="hl str">&quot;*** YOUR CODE HERE ***&quot;</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">observe</span><span class="hl opt">(</span>self<span class="hl opt">,</span> observation<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">        Update beliefs based on the given distance observation. Make</span>
+<span class="hl str">        sure to handle the special case where all particles have weight</span>
+<span class="hl str">        0 after reweighting based on observation. If this happens,</span>
+<span class="hl str">        resample particles uniformly at random from the set of legal</span>
+<span class="hl str">        positions (self.legalPositions).</span>
+<span class="hl str"></span>
+<span class="hl str">        A correct implementation will handle two special cases:</span>
+<span class="hl str">          1) When a ghost is captured by Pacman, **all** particles should be updated so</span>
+<span class="hl str">             that the ghost appears in its prison cell, self.getJailPosition()</span>
+<span class="hl str"></span>
+<span class="hl str">             You can check if a ghost has been captured by Pacman by</span>
+<span class="hl str">             checking if it has a noisyDistance of None (a noisy distance</span>
+<span class="hl str">             of None will be returned if, and only if, the ghost is</span>
+<span class="hl str">             captured).</span>
+<span class="hl str"></span>
+<span class="hl str">          2) When all particles receive 0 weight, they should be recreated from the</span>
+<span class="hl str">             prior distribution by calling initializeUniformly. The total weight</span>
+<span class="hl str">             for a belief distribution can be found by calling totalCount on</span>
+<span class="hl str">             a Counter object</span>
+<span class="hl str"></span>
+<span class="hl str">        util.sample(Counter object) is a helper method to generate a sample from</span>
+<span class="hl str">        a belief distribution</span>
+<span class="hl str"></span>
+<span class="hl str">        You may also want to use util.manhattanDistance to calculate the distance</span>
+<span class="hl str">        between a particle and pacman's position.</span>
+<span class="hl str">        &quot;&quot;&quot;</span>
+
+        noisyDistance <span class="hl opt">=</span> observation
+        emissionModel <span class="hl opt">=</span> busters<span class="hl opt">.</span><span class="hl kwd">getObservationDistribution</span><span class="hl opt">(</span>noisyDistance<span class="hl opt">)</span>
+        pacmanPosition <span class="hl opt">=</span> gameState<span class="hl opt">.</span><span class="hl kwd">getPacmanPosition</span><span class="hl opt">()</span>
+        <span class="hl str">&quot;*** YOUR CODE HERE ***&quot;</span>
+        util<span class="hl opt">.</span><span class="hl kwd">raiseNotDefined</span><span class="hl opt">()</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">elapseTime</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">        Update beliefs for a time step elapsing.</span>
+<span class="hl str"></span>
+<span class="hl str">        As in the elapseTime method of ExactInference, you should use:</span>
+<span class="hl str"></span>
+<span class="hl str">          newPosDist = self.getPositionDistribution(self.setGhostPosition(gameState, oldPos))</span>
+<span class="hl str"></span>
+<span class="hl str">        to obtain the distribution over new positions for the ghost, given</span>
+<span class="hl str">        its previous position (oldPos) as well as Pacman's current</span>
+<span class="hl str">        position.</span>
+<span class="hl str"></span>
+<span class="hl str">        util.sample(Counter object) is a helper method to generate a sample from a</span>
+<span class="hl str">        belief distribution</span>
+<span class="hl str">        &quot;&quot;&quot;</span>
+        <span class="hl str">&quot;*** YOUR CODE HERE ***&quot;</span>
+        util<span class="hl opt">.</span><span class="hl kwd">raiseNotDefined</span><span class="hl opt">()</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">getBeliefDistribution</span><span class="hl opt">(</span>self<span class="hl opt">):</span>
+        <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">          Return the agent's current belief state, a distribution over</span>
+<span class="hl str">          ghost locations conditioned on all evidence and time passage. This method</span>
+<span class="hl str">          essentially converts a list of particles into a belief distribution (a Counter object)</span>
+<span class="hl str">        &quot;&quot;&quot;</span>
+        <span class="hl str">&quot;*** YOUR CODE HERE ***&quot;</span>
+        util<span class="hl opt">.</span><span class="hl kwd">raiseNotDefined</span><span class="hl opt">()</span>
+
+<span class="hl kwa">class</span> <span class="hl kwd">MarginalInference</span><span class="hl opt">(</span>InferenceModule<span class="hl opt">):</span>
+    <span class="hl str">&quot;A wrapper around the JointInference module that returns marginal beliefs about ghosts.&quot;</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">initializeUniformly</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;Set the belief state to an initial, prior value.&quot;</span>
+        <span class="hl kwa">if</span> self<span class="hl opt">.</span>index <span class="hl opt">==</span> <span class="hl num">1</span><span class="hl opt">:</span> jointInference<span class="hl opt">.</span><span class="hl kwd">initialize</span><span class="hl opt">(</span>gameState<span class="hl opt">,</span> self<span class="hl opt">.</span>legalPositions<span class="hl opt">)</span>
+        jointInference<span class="hl opt">.</span><span class="hl kwd">addGhostAgent</span><span class="hl opt">(</span>self<span class="hl opt">.</span>ghostAgent<span class="hl opt">)</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">observeState</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;Update beliefs based on the given distance observation and gameState.&quot;</span>
+        <span class="hl kwa">if</span> self<span class="hl opt">.</span>index <span class="hl opt">==</span> <span class="hl num">1</span><span class="hl opt">:</span> jointInference<span class="hl opt">.</span><span class="hl kwd">observeState</span><span class="hl opt">(</span>gameState<span class="hl opt">)</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">elapseTime</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;Update beliefs for a time step elapsing from a gameState.&quot;</span>
+        <span class="hl kwa">if</span> self<span class="hl opt">.</span>index <span class="hl opt">==</span> <span class="hl num">1</span><span class="hl opt">:</span> jointInference<span class="hl opt">.</span><span class="hl kwd">elapseTime</span><span class="hl opt">(</span>gameState<span class="hl opt">)</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">getBeliefDistribution</span><span class="hl opt">(</span>self<span class="hl opt">):</span>
+        <span class="hl str">&quot;Returns the marginal belief over a particular ghost by summing out the others.&quot;</span>
+        jointDistribution <span class="hl opt">=</span> jointInference<span class="hl opt">.</span><span class="hl kwd">getBeliefDistribution</span><span class="hl opt">()</span>
+        dist <span class="hl opt">=</span> util<span class="hl opt">.</span><span class="hl kwd">Counter</span><span class="hl opt">()</span>
+        <span class="hl kwa">for</span> t<span class="hl opt">,</span> prob <span class="hl kwa">in</span> jointDistribution<span class="hl opt">.</span><span class="hl kwd">items</span><span class="hl opt">():</span>
+            dist<span class="hl opt">[</span>t<span class="hl opt">[</span>self<span class="hl opt">.</span>index <span class="hl opt">-</span> <span class="hl num">1</span><span class="hl opt">]] +=</span> prob
+        <span class="hl kwa">return</span> dist
+
+<span class="hl kwa">class</span> JointParticleFilter<span class="hl opt">:</span>
+    <span class="hl str">&quot;JointParticleFilter tracks a joint distribution over tuples of all ghost positions.&quot;</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">__init__</span><span class="hl opt">(</span>self<span class="hl opt">,</span> numParticles<span class="hl opt">=</span><span class="hl num">600</span><span class="hl opt">):</span>
+        self<span class="hl opt">.</span><span class="hl kwd">setNumParticles</span><span class="hl opt">(</span>numParticles<span class="hl opt">)</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">setNumParticles</span><span class="hl opt">(</span>self<span class="hl opt">,</span> numParticles<span class="hl opt">):</span>
+        self<span class="hl opt">.</span>numParticles <span class="hl opt">=</span> numParticles
+
+    <span class="hl kwa">def</span> <span class="hl kwd">initialize</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">,</span> legalPositions<span class="hl opt">):</span>
+        <span class="hl str">&quot;Stores information about the game, then initializes particles.&quot;</span>
+        self<span class="hl opt">.</span>numGhosts <span class="hl opt">=</span> gameState<span class="hl opt">.</span><span class="hl kwd">getNumAgents</span><span class="hl opt">() -</span> <span class="hl num">1</span>
+        self<span class="hl opt">.</span>ghostAgents <span class="hl opt">= []</span>
+        self<span class="hl opt">.</span>legalPositions <span class="hl opt">=</span> legalPositions
+        self<span class="hl opt">.</span><span class="hl kwd">initializeParticles</span><span class="hl opt">()</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">initializeParticles</span><span class="hl opt">(</span>self<span class="hl opt">):</span>
+        <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">        Initialize particles to be consistent with a uniform prior.</span>
+<span class="hl str"></span>
+<span class="hl str">        Each particle is a tuple of ghost positions. Use self.numParticles for</span>
+<span class="hl str">        the number of particles. You may find the python package 'itertools' helpful.</span>
+<span class="hl str">        Specifically, you will need to think about permutations of legal ghost</span>
+<span class="hl str">        positions, with the additional understanding that ghosts may occupy the</span>
+<span class="hl str">        same space. Look at the 'product' function in itertools to get an</span>
+<span class="hl str">        implementation of the catesian product. Note: If you use</span>
+<span class="hl str">        itertools, keep in mind that permutations are not returned in a random order;</span>
+<span class="hl str">        you must shuffle the list of permutations in order to ensure even placement</span>
+<span class="hl str">        of particles across the board. Use self.legalPositions to obtain a list of</span>
+<span class="hl str">        positions a ghost may occupy.</span>
+<span class="hl str"></span>
+<span class="hl str">          ** NOTE **</span>
+<span class="hl str">            the variable you store your particles in must be a list; a list is simply a collection</span>
+<span class="hl str">            of unweighted variables (positions in this case). Storing your particles as a Counter or</span>
+<span class="hl str">            dictionary (where there could be an associated weight with each position) is incorrect</span>
+<span class="hl str">            and will produce errors</span>
+<span class="hl str"></span>
+<span class="hl str">        &quot;&quot;&quot;</span>
+        <span class="hl str">&quot;*** YOUR CODE HERE ***&quot;</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">addGhostAgent</span><span class="hl opt">(</span>self<span class="hl opt">,</span> agent<span class="hl opt">):</span>
+        <span class="hl str">&quot;Each ghost agent is registered separately and stored (in case they are different).&quot;</span>
+        self<span class="hl opt">.</span>ghostAgents<span class="hl opt">.</span><span class="hl kwd">append</span><span class="hl opt">(</span>agent<span class="hl opt">)</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">getJailPosition</span><span class="hl opt">(</span>self<span class="hl opt">,</span> i<span class="hl opt">):</span>
+        <span class="hl kwa">return</span> <span class="hl opt">(</span><span class="hl num">2</span> <span class="hl opt">*</span> i <span class="hl opt">+</span> <span class="hl num">1</span><span class="hl opt">,</span> <span class="hl num">1</span><span class="hl opt">);</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">observeState</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">        Resamples the set of particles using the likelihood of the noisy observations.</span>
+<span class="hl str"></span>
+<span class="hl str">        To loop over the ghosts, use:</span>
+<span class="hl str"></span>
+<span class="hl str">          for i in range(self.numGhosts):</span>
+<span class="hl str">            ...</span>
+<span class="hl str"></span>
+<span class="hl str">        A correct implementation will handle two special cases:</span>
+<span class="hl str">          1) When a ghost is captured by Pacman, all particles should be updated so</span>
+<span class="hl str">             that the ghost appears in its prison cell, position self.getJailPosition(i)</span>
+<span class="hl str">             where &quot;i&quot; is the index of the ghost.</span>
+<span class="hl str"></span>
+<span class="hl str">             You can check if a ghost has been captured by Pacman by</span>
+<span class="hl str">             checking if it has a noisyDistance of None (a noisy distance</span>
+<span class="hl str">             of None will be returned if, and only if, the ghost is</span>
+<span class="hl str">             captured).</span>
+<span class="hl str"></span>
+<span class="hl str">          2) When all particles receive 0 weight, they should be recreated from the</span>
+<span class="hl str">              prior distribution by calling initializeParticles. After all particles</span>
+<span class="hl str">              are generated randomly, any ghosts that are eaten (have noisyDistance of 0)</span>
+<span class="hl str">              must be changed to the jail Position. This will involve changing each</span>
+<span class="hl str">              particle if a ghost has been eaten.</span>
+<span class="hl str"></span>
+<span class="hl str">        ** Remember ** We store particles as tuples, but to edit a specific particle,</span>
+<span class="hl str">        it must be converted to a list, edited, and then converted back to a tuple. Since</span>
+<span class="hl str">        this is a common operation when placing a ghost in the jail for a particle, we have</span>
+<span class="hl str">        provided a helper method named self.getParticleWithGhostInJail(particle, ghostIndex)</span>
+<span class="hl str">        that performs these three operations for you.</span>
+<span class="hl str"></span>
+<span class="hl str">        &quot;&quot;&quot;</span>
+        pacmanPosition <span class="hl opt">=</span> gameState<span class="hl opt">.</span><span class="hl kwd">getPacmanPosition</span><span class="hl opt">()</span>
+        noisyDistances <span class="hl opt">=</span> gameState<span class="hl opt">.</span><span class="hl kwd">getNoisyGhostDistances</span><span class="hl opt">()</span>
+        <span class="hl kwa">if</span> <span class="hl kwb">len</span><span class="hl opt">(</span>noisyDistances<span class="hl opt">) &lt;</span> self<span class="hl opt">.</span>numGhosts<span class="hl opt">:</span> <span class="hl kwa">return</span>
+        emissionModels <span class="hl opt">= [</span>busters<span class="hl opt">.</span><span class="hl kwd">getObservationDistribution</span><span class="hl opt">(</span>dist<span class="hl opt">)</span> <span class="hl kwa">for</span> dist <span class="hl kwa">in</span> noisyDistances<span class="hl opt">]</span>
+
+        <span class="hl str">&quot;*** YOUR CODE HERE ***&quot;</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">getParticleWithGhostInJail</span><span class="hl opt">(</span>self<span class="hl opt">,</span> particle<span class="hl opt">,</span> ghostIndex<span class="hl opt">):</span>
+        particle <span class="hl opt">=</span> <span class="hl kwb">list</span><span class="hl opt">(</span>particle<span class="hl opt">)</span>
+        particle<span class="hl opt">[</span>ghostIndex<span class="hl opt">] =</span> self<span class="hl opt">.</span><span class="hl kwd">getJailPosition</span><span class="hl opt">(</span>ghostIndex<span class="hl opt">)</span>
+        <span class="hl kwa">return</span> <span class="hl kwb">tuple</span><span class="hl opt">(</span>particle<span class="hl opt">)</span>
+
+    <span class="hl kwa">def</span> <span class="hl kwd">elapseTime</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gameState<span class="hl opt">):</span>
+        <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">        Samples each particle's next state based on its current state and the gameState.</span>
+<span class="hl str"></span>
+<span class="hl str">        To loop over the ghosts, use:</span>
+<span class="hl str"></span>
+<span class="hl str">          for i in range(self.numGhosts):</span>
+<span class="hl str">            ...</span>
+<span class="hl str"></span>
+<span class="hl str">        Then, assuming that &quot;i&quot; refers to the index of the</span>
+<span class="hl str">        ghost, to obtain the distributions over new positions for that</span>
+<span class="hl str">        single ghost, given the list (prevGhostPositions) of previous</span>
+<span class="hl str">        positions of ALL of the ghosts, use this line of code:</span>
+<span class="hl str"></span>
+<span class="hl str">          newPosDist = getPositionDistributionForGhost(setGhostPositions(gameState, prevGhostPositions),</span>
+<span class="hl str">                                                       i, self.ghostAgents[i])</span>
+<span class="hl str"></span>
+<span class="hl str">        **Note** that you may need to replace &quot;prevGhostPositions&quot; with the</span>
+<span class="hl str">        correct name of the variable that you have used to refer to the</span>
+<span class="hl str">        list of the previous positions of all of the ghosts, and you may</span>
+<span class="hl str">        need to replace &quot;i&quot; with the variable you have used to refer to</span>
+<span class="hl str">        the index of the ghost for which you are computing the new</span>
+<span class="hl str">        position distribution.</span>
+<span class="hl str"></span>
+<span class="hl str">        As an implementation detail (with which you need not concern</span>
+<span class="hl str">        yourself), the line of code above for obtaining newPosDist makes</span>
+<span class="hl str">        use of two helper functions defined below in this file:</span>
+<span class="hl str"></span>
+<span class="hl str">          1) setGhostPositions(gameState, ghostPositions)</span>
+<span class="hl str">              This method alters the gameState by placing the ghosts in the supplied positions.</span>
+<span class="hl str"></span>
+<span class="hl str">          2) getPositionDistributionForGhost(gameState, ghostIndex, agent)</span>
+<span class="hl str">              This method uses the supplied ghost agent to determine what positions</span>
+<span class="hl str">              a ghost (ghostIndex) controlled by a particular agent (ghostAgent)</span>
+<span class="hl str">              will move to in the supplied gameState.  All ghosts</span>
+<span class="hl str">              must first be placed in the gameState using setGhostPositions above.</span>
+<span class="hl str"></span>
+<span class="hl str">              The ghost agent you are meant to supply is self.ghostAgents[ghostIndex-1],</span>
+<span class="hl str">              but in this project all ghost agents are always the same.</span>
+<span class="hl str">        &quot;&quot;&quot;</span>
+        newParticles <span class="hl opt">= []</span>
+        <span class="hl kwa">for</span> oldParticle <span class="hl kwa">in</span> self<span class="hl opt">.</span>particles<span class="hl opt">:</span>
+            newParticle <span class="hl opt">=</span> <span class="hl kwb">list</span><span class="hl opt">(</span>oldParticle<span class="hl opt">)</span> <span class="hl slc"># A list of ghost positions</span>
+
+            <span class="hl slc"># now loop through and update each entry in newParticle...</span>
+
+            <span class="hl str">&quot;*** YOUR CODE HERE ***&quot;</span>
+
+            <span class="hl str">&quot;*** END YOUR CODE HERE ***&quot;</span>
+            newParticles<span class="hl opt">.</span><span class="hl kwd">append</span><span class="hl opt">(</span><span class="hl kwb">tuple</span><span class="hl opt">(</span>newParticle<span class="hl opt">))</span>
+        self<span class="hl opt">.</span>particles <span class="hl opt">=</span> newParticles
+
+    <span class="hl kwa">def</span> <span class="hl kwd">getBeliefDistribution</span><span class="hl opt">(</span>self<span class="hl opt">):</span>
+        <span class="hl str">&quot;*** YOUR CODE HERE ***&quot;</span>
+        util<span class="hl opt">.</span><span class="hl kwd">raiseNotDefined</span><span class="hl opt">()</span>
+        
+<span class="hl slc"># One JointInference module is shared globally across instances of MarginalInference</span>
+jointInference <span class="hl opt">=</span> <span class="hl kwd">JointParticleFilter</span><span class="hl opt">()</span>
+
+<span class="hl kwa">def</span> <span class="hl kwd">getPositionDistributionForGhost</span><span class="hl opt">(</span>gameState<span class="hl opt">,</span> ghostIndex<span class="hl opt">,</span> agent<span class="hl opt">):</span>
+    <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">    Returns the distribution over positions for a ghost, using the supplied gameState.</span>
+<span class="hl str">    &quot;&quot;&quot;</span>
+
+    <span class="hl slc"># index 0 is pacman, but the students think that index 0 is the first ghost.</span>
+    ghostPosition <span class="hl opt">=</span> gameState<span class="hl opt">.</span><span class="hl kwd">getGhostPosition</span><span class="hl opt">(</span>ghostIndex<span class="hl opt">+</span><span class="hl num">1</span><span class="hl opt">)</span>
+    actionDist <span class="hl opt">=</span> agent<span class="hl opt">.</span><span class="hl kwd">getDistribution</span><span class="hl opt">(</span>gameState<span class="hl opt">)</span>
+    dist <span class="hl opt">=</span> util<span class="hl opt">.</span><span class="hl kwd">Counter</span><span class="hl opt">()</span>
+    <span class="hl kwa">for</span> action<span class="hl opt">,</span> prob <span class="hl kwa">in</span> actionDist<span class="hl opt">.</span><span class="hl kwd">items</span><span class="hl opt">():</span>
+        successorPosition <span class="hl opt">=</span> game<span class="hl opt">.</span>Actions<span class="hl opt">.</span><span class="hl kwd">getSuccessor</span><span class="hl opt">(</span>ghostPosition<span class="hl opt">,</span> action<span class="hl opt">)</span>
+        dist<span class="hl opt">[</span>successorPosition<span class="hl opt">] =</span> prob
+    <span class="hl kwa">return</span> dist
+
+<span class="hl kwa">def</span> <span class="hl kwd">setGhostPositions</span><span class="hl opt">(</span>gameState<span class="hl opt">,</span> ghostPositions<span class="hl opt">):</span>
+    <span class="hl str">&quot;Sets the position of all ghosts to the values in ghostPositionTuple.&quot;</span>
+    <span class="hl kwa">for</span> index<span class="hl opt">,</span> pos <span class="hl kwa">in</span> <span class="hl kwb">enumerate</span><span class="hl opt">(</span>ghostPositions<span class="hl opt">):</span>
+        conf <span class="hl opt">=</span> game<span class="hl opt">.</span><span class="hl kwd">Configuration</span><span class="hl opt">(</span>pos<span class="hl opt">,</span> game<span class="hl opt">.</span>Directions<span class="hl opt">.</span>STOP<span class="hl opt">)</span>
+        gameState<span class="hl opt">.</span>data<span class="hl opt">.</span>agentStates<span class="hl opt">[</span>index <span class="hl opt">+</span> <span class="hl num">1</span><span class="hl opt">] =</span> game<span class="hl opt">.</span><span class="hl kwd">AgentState</span><span class="hl opt">(</span>conf<span class="hl opt">,</span> <span class="hl kwa">False</span><span class="hl opt">)</span>
+    <span class="hl kwa">return</span> gameState
+
+</pre>
+</body>
+</html>
+<!--HTML generated by highlight 3.8, http://www.andre-simon.de/-->

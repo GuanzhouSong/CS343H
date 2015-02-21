@@ -1,0 +1,297 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+<title>./grading.py</title>
+<link rel="stylesheet" type="text/css" href="highlight.css">
+</head>
+<body class="hl">
+<pre class="hl"><span class="hl slc"># grading.py</span>
+<span class="hl slc"># ----------</span>
+<span class="hl slc"># Licensing Information: Please do not distribute or publish solutions to this</span>
+<span class="hl slc"># project. You are free to use and extend these projects for educational</span>
+<span class="hl slc"># purposes. The Pacman AI projects were developed at UC Berkeley, primarily by</span>
+<span class="hl slc"># John DeNero (denero&#64;cs.berkeley.edu) and Dan Klein (klein&#64;cs.berkeley.edu).</span>
+<span class="hl slc"># Student side autograding was added by Brad Miller, Nick Hay, and Pieter </span>
+<span class="hl slc"># Abbeel in Spring 2013.</span>
+<span class="hl slc"># For more info, see http://inst.eecs.berkeley.edu/~cs188/pacman/pacman.html</span>
+
+<span class="hl str">&quot;Common code for autograders&quot;</span>
+
+<span class="hl kwa">import</span> cgi
+<span class="hl kwa">import</span> time
+<span class="hl kwa">import</span> sys
+<span class="hl kwa">import</span> traceback
+<span class="hl kwa">import</span> pdb
+<span class="hl kwa">from</span> collections <span class="hl kwa">import</span> defaultdict
+<span class="hl kwa">import</span> util
+
+<span class="hl kwa">class</span> Grades<span class="hl opt">:</span>
+  <span class="hl str">&quot;A data structure for project grades, along with formatting code to display them&quot;</span>
+  <span class="hl kwa">def</span> <span class="hl kwd">__init__</span><span class="hl opt">(</span>self<span class="hl opt">,</span> projectName<span class="hl opt">,</span> questionsAndMaxesList<span class="hl opt">,</span> edxOutput<span class="hl opt">=</span><span class="hl kwa">False</span><span class="hl opt">,</span> muteOutput<span class="hl opt">=</span><span class="hl kwa">False</span><span class="hl opt">):</span>
+    <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">    Defines the grading scheme for a project</span>
+<span class="hl str">      projectName: project name</span>
+<span class="hl str">      questionsAndMaxesDict: a list of (question name, max points per question)</span>
+<span class="hl str">    &quot;&quot;&quot;</span>
+    self<span class="hl opt">.</span>questions <span class="hl opt">= [</span>el<span class="hl opt">[</span><span class="hl num">0</span><span class="hl opt">]</span> <span class="hl kwa">for</span> el <span class="hl kwa">in</span> questionsAndMaxesList<span class="hl opt">]</span>
+    self<span class="hl opt">.</span>maxes <span class="hl opt">=</span> <span class="hl kwb">dict</span><span class="hl opt">(</span>questionsAndMaxesList<span class="hl opt">)</span>
+    self<span class="hl opt">.</span>points <span class="hl opt">=</span> <span class="hl kwd">Counter</span><span class="hl opt">()</span>
+    self<span class="hl opt">.</span>messages <span class="hl opt">=</span> <span class="hl kwb">dict</span><span class="hl opt">([(</span>q<span class="hl opt">, [])</span> <span class="hl kwa">for</span> q <span class="hl kwa">in</span> self<span class="hl opt">.</span>questions<span class="hl opt">])</span>
+    self<span class="hl opt">.</span>project <span class="hl opt">=</span> projectName
+    self<span class="hl opt">.</span>start <span class="hl opt">=</span> time<span class="hl opt">.</span><span class="hl kwd">localtime</span><span class="hl opt">()[</span><span class="hl num">1</span><span class="hl opt">:</span><span class="hl num">6</span><span class="hl opt">]</span>
+    self<span class="hl opt">.</span>sane <span class="hl opt">=</span> <span class="hl kwa">True</span> <span class="hl slc"># Sanity checks</span>
+    self<span class="hl opt">.</span>currentQuestion <span class="hl opt">=</span> <span class="hl kwa">None</span> <span class="hl slc"># Which question we're grading</span>
+    self<span class="hl opt">.</span>edxOutput <span class="hl opt">=</span> edxOutput
+    self<span class="hl opt">.</span>mute <span class="hl opt">=</span> muteOutput
+    self<span class="hl opt">.</span>prereqs <span class="hl opt">=</span> <span class="hl kwd">defaultdict</span><span class="hl opt">(</span><span class="hl kwb">set</span><span class="hl opt">)</span>
+    
+    <span class="hl slc">#print 'Autograder transcript for %s' % self.project</span>
+    <span class="hl kwa">print</span> <span class="hl str">'Starting on %d-%d at %d:%02d:%02d'</span> <span class="hl opt">%</span> self<span class="hl opt">.</span>start
+    
+  <span class="hl kwa">def</span> <span class="hl kwd">addPrereq</span><span class="hl opt">(</span>self<span class="hl opt">,</span> question<span class="hl opt">,</span> prereq<span class="hl opt">):</span>
+    self<span class="hl opt">.</span>prereqs<span class="hl opt">[</span>question<span class="hl opt">].</span><span class="hl kwd">add</span><span class="hl opt">(</span>prereq<span class="hl opt">)</span>
+
+  <span class="hl kwa">def</span> <span class="hl kwd">grade</span><span class="hl opt">(</span>self<span class="hl opt">,</span> gradingModule<span class="hl opt">,</span> exceptionMap <span class="hl opt">= {},</span> bonusPic <span class="hl opt">=</span> <span class="hl kwa">False</span><span class="hl opt">):</span>
+    <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">    Grades each question</span>
+<span class="hl str">      gradingModule: the module with all the grading functions (pass in with sys.modules[__name__])</span>
+<span class="hl str">    &quot;&quot;&quot;</span>
+    
+    completedQuestions <span class="hl opt">=</span> <span class="hl kwb">set</span><span class="hl opt">([])</span>
+    <span class="hl kwa">for</span> q <span class="hl kwa">in</span> self<span class="hl opt">.</span>questions<span class="hl opt">:</span>
+      <span class="hl kwa">print</span> <span class="hl str">'</span><span class="hl esc">\n</span><span class="hl str">Question %s'</span> <span class="hl opt">%</span> q
+      <span class="hl kwa">print</span> <span class="hl str">'='</span> <span class="hl opt">* (</span><span class="hl num">9</span> <span class="hl opt">+</span> <span class="hl kwb">len</span><span class="hl opt">(</span>q<span class="hl opt">))</span>
+      <span class="hl kwa">print</span>
+      self<span class="hl opt">.</span>currentQuestion <span class="hl opt">=</span> q
+      
+      incompleted <span class="hl opt">=</span> self<span class="hl opt">.</span>prereqs<span class="hl opt">[</span>q<span class="hl opt">].</span><span class="hl kwd">difference</span><span class="hl opt">(</span>completedQuestions<span class="hl opt">)</span>
+      <span class="hl kwa">if</span> <span class="hl kwb">len</span><span class="hl opt">(</span>incompleted<span class="hl opt">) &gt;</span> <span class="hl num">0</span><span class="hl opt">:</span>
+          prereq <span class="hl opt">=</span> incompleted<span class="hl opt">.</span><span class="hl kwd">pop</span><span class="hl opt">()</span>
+          <span class="hl kwa">print</span> \
+<span class="hl str">&quot;&quot;&quot;*** NOTE: Make sure to complete Question %s before working on Question %s,</span>
+<span class="hl str">*** because Question %s builds upon your answer for Question %s.</span>
+<span class="hl str">&quot;&quot;&quot;</span> <span class="hl opt">% (</span>prereq<span class="hl opt">,</span> q<span class="hl opt">,</span> q<span class="hl opt">,</span> prereq<span class="hl opt">)</span>
+          <span class="hl kwa">continue</span>
+      
+      <span class="hl kwa">if</span> self<span class="hl opt">.</span>mute<span class="hl opt">:</span> util<span class="hl opt">.</span><span class="hl kwd">mutePrint</span><span class="hl opt">()</span>
+      <span class="hl kwa">try</span><span class="hl opt">:</span>
+        util<span class="hl opt">.</span><span class="hl kwd">TimeoutFunction</span><span class="hl opt">(</span><span class="hl kwb">getattr</span><span class="hl opt">(</span>gradingModule<span class="hl opt">,</span> q<span class="hl opt">),</span><span class="hl num">300</span><span class="hl opt">)(</span>self<span class="hl opt">)</span> <span class="hl slc"># Call the question's function</span>
+        <span class="hl slc">#TimeoutFunction(getattr(gradingModule, q),1200)(self) # Call the question's function</span>
+      <span class="hl kwa">except</span> <span class="hl kwc">Exception</span><span class="hl opt">,</span> inst<span class="hl opt">:</span>
+        self<span class="hl opt">.</span><span class="hl kwd">addExceptionMessage</span><span class="hl opt">(</span>q<span class="hl opt">,</span> inst<span class="hl opt">,</span> traceback<span class="hl opt">)</span>
+        self<span class="hl opt">.</span><span class="hl kwd">addErrorHints</span><span class="hl opt">(</span>exceptionMap<span class="hl opt">,</span> inst<span class="hl opt">,</span> q<span class="hl opt">[</span><span class="hl num">1</span><span class="hl opt">])</span>
+      <span class="hl kwa">except</span><span class="hl opt">:</span>
+        self<span class="hl opt">.</span><span class="hl kwd">fail</span><span class="hl opt">(</span><span class="hl str">'FAIL: Terminated with a string exception.'</span><span class="hl opt">)</span>
+      <span class="hl kwa">finally</span><span class="hl opt">:</span>
+        <span class="hl kwa">if</span> self<span class="hl opt">.</span>mute<span class="hl opt">:</span> util<span class="hl opt">.</span><span class="hl kwd">unmutePrint</span><span class="hl opt">()</span>
+      
+      <span class="hl kwa">if</span> self<span class="hl opt">.</span>points<span class="hl opt">[</span>q<span class="hl opt">] &gt;=</span> self<span class="hl opt">.</span>maxes<span class="hl opt">[</span>q<span class="hl opt">]:</span>
+        completedQuestions<span class="hl opt">.</span><span class="hl kwd">add</span><span class="hl opt">(</span>q<span class="hl opt">)</span>
+        
+      <span class="hl kwa">print</span> <span class="hl str">'</span><span class="hl esc">\n</span><span class="hl str">### Question %s: %d/%d ###</span><span class="hl esc">\n</span><span class="hl str">'</span> <span class="hl opt">% (</span>q<span class="hl opt">,</span> self<span class="hl opt">.</span>points<span class="hl opt">[</span>q<span class="hl opt">],</span> self<span class="hl opt">.</span>maxes<span class="hl opt">[</span>q<span class="hl opt">])</span>
+        
+
+    <span class="hl kwa">print</span> <span class="hl str">'</span><span class="hl esc">\n</span><span class="hl str">Finished at %d:%02d:%02d'</span> <span class="hl opt">%</span> time<span class="hl opt">.</span><span class="hl kwd">localtime</span><span class="hl opt">()[</span><span class="hl num">3</span><span class="hl opt">:</span><span class="hl num">6</span><span class="hl opt">]</span>
+    <span class="hl kwa">print</span> <span class="hl str">&quot;</span><span class="hl esc">\n</span><span class="hl str">Provisional grades</span><span class="hl esc">\n</span><span class="hl str">==================&quot;</span>
+    
+    <span class="hl kwa">for</span> q <span class="hl kwa">in</span> self<span class="hl opt">.</span>questions<span class="hl opt">:</span>
+      <span class="hl kwa">print</span> <span class="hl str">'Question %s: %d/%d'</span> <span class="hl opt">% (</span>q<span class="hl opt">,</span> self<span class="hl opt">.</span>points<span class="hl opt">[</span>q<span class="hl opt">],</span> self<span class="hl opt">.</span>maxes<span class="hl opt">[</span>q<span class="hl opt">])</span>
+    <span class="hl kwa">print</span> <span class="hl str">'------------------'</span>
+    <span class="hl kwa">print</span> <span class="hl str">'Total: %d/%d'</span> <span class="hl opt">% (</span>self<span class="hl opt">.</span>points<span class="hl opt">.</span><span class="hl kwd">totalCount</span><span class="hl opt">(),</span> <span class="hl kwb">sum</span><span class="hl opt">(</span>self<span class="hl opt">.</span>maxes<span class="hl opt">.</span><span class="hl kwd">values</span><span class="hl opt">()))</span>
+    <span class="hl kwa">if</span> bonusPic <span class="hl kwa">and</span> self<span class="hl opt">.</span>points<span class="hl opt">.</span><span class="hl kwd">totalCount</span><span class="hl opt">() ==</span> <span class="hl num">25</span><span class="hl opt">:</span>
+      <span class="hl kwa">print</span> <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str"></span>
+<span class="hl str">                     ALL HAIL GRANDPAC.</span>
+<span class="hl str">              LONG LIVE THE GHOSTBUSTING KING.</span>
+<span class="hl str"></span>
+<span class="hl str">                  ---      ----      ---</span>
+<span class="hl str">                  |  \    /  + \    /  |</span>
+<span class="hl str">                  | + \--/      \--/ + |</span>
+<span class="hl str">                  |   +     +          |                   </span>
+<span class="hl str">                  | +     +        +   |                  </span>
+<span class="hl str">                &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;                </span>
+<span class="hl str">              &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;              </span>
+<span class="hl str">            &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;            </span>
+<span class="hl str">            &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;          </span>
+<span class="hl str">            \   &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;          </span>
+<span class="hl str">             \ /  &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;        </span>
+<span class="hl str">              V   \   &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;        </span>
+<span class="hl str">                   \ /  &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;        </span>
+<span class="hl str">                    V     &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;        </span>
+<span class="hl str">                            &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;        </span>
+<span class="hl str">                    /\      &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;        </span>
+<span class="hl str">                   /  \  &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;        </span>
+<span class="hl str">              /\  /    &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;        </span>
+<span class="hl str">             /  \ &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;        </span>
+<span class="hl str">            /    &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;          </span>
+<span class="hl str">            &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;          </span>
+<span class="hl str">            &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;            </span>
+<span class="hl str">              &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;              </span>
+<span class="hl str">                &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;                </span>
+<span class="hl str">                    &#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;&#64;            </span>
+<span class="hl str"></span>
+<span class="hl str">&quot;&quot;&quot;</span>
+    <span class="hl kwa">print</span> <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">Your assignment has NOT been turned in, you must still submit your files via turnin, </span>
+<span class="hl str">using the instructions on the assignment page.  If you turn in your code in the current </span>
+<span class="hl str">state the grades assigned by this autograder will be a lower bound on your actual grade, </span>
+<span class="hl str">unless your submission was not in the spirit of the course, such as if your submission </span>
+<span class="hl str">simply hardcoded the answers to the tests, or in the case of academic dishonesty.  We </span>
+<span class="hl str">will screen for this after the deadline.</span>
+<span class="hl str"></span>
+<span class="hl str">Additionally, your final grade may be higher than that assigned by the autograder, if </span>
+<span class="hl str">your incorrect solutions are deemed to warrant partial credit.</span>
+<span class="hl str">&quot;&quot;&quot;</span>
+    
+    <span class="hl kwa">if</span> self<span class="hl opt">.</span>edxOutput<span class="hl opt">:</span>
+        self<span class="hl opt">.</span><span class="hl kwd">produceOutput</span><span class="hl opt">()</span>
+
+  <span class="hl kwa">def</span> <span class="hl kwd">addExceptionMessage</span><span class="hl opt">(</span>self<span class="hl opt">,</span> q<span class="hl opt">,</span> inst<span class="hl opt">,</span> traceback<span class="hl opt">):</span>
+    <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">    Method to format the exception message, this is more complicated because</span>
+<span class="hl str">    we need to cgi.escape the traceback but wrap the exception in a &lt;pre&gt; tag</span>
+<span class="hl str">    &quot;&quot;&quot;</span>
+    self<span class="hl opt">.</span><span class="hl kwd">fail</span><span class="hl opt">(</span><span class="hl str">'FAIL: Exception raised: %s'</span> <span class="hl opt">%</span> inst<span class="hl opt">)</span>
+    self<span class="hl opt">.</span><span class="hl kwd">addMessage</span><span class="hl opt">(</span><span class="hl str">''</span><span class="hl opt">)</span>
+    <span class="hl kwa">for</span> line <span class="hl kwa">in</span> traceback<span class="hl opt">.</span><span class="hl kwd">format_exc</span><span class="hl opt">().</span><span class="hl kwd">split</span><span class="hl opt">(</span><span class="hl str">'</span><span class="hl esc">\n</span><span class="hl str">'</span><span class="hl opt">):</span>
+        self<span class="hl opt">.</span><span class="hl kwd">addMessage</span><span class="hl opt">(</span>line<span class="hl opt">)</span>
+
+  <span class="hl kwa">def</span> <span class="hl kwd">addErrorHints</span><span class="hl opt">(</span>self<span class="hl opt">,</span> exceptionMap<span class="hl opt">,</span> errorInstance<span class="hl opt">,</span> questionNum<span class="hl opt">):</span>
+    typeOf <span class="hl opt">=</span> <span class="hl kwb">str</span><span class="hl opt">(</span><span class="hl kwb">type</span><span class="hl opt">(</span>errorInstance<span class="hl opt">))</span>
+    questionName <span class="hl opt">=</span> <span class="hl str">'q'</span> <span class="hl opt">+</span> questionNum
+    errorHint <span class="hl opt">=</span> <span class="hl str">''</span>
+
+    <span class="hl slc"># question specific error hints</span>
+    <span class="hl kwa">if</span> exceptionMap<span class="hl opt">.</span><span class="hl kwd">get</span><span class="hl opt">(</span>questionName<span class="hl opt">):</span>
+      questionMap <span class="hl opt">=</span> exceptionMap<span class="hl opt">.</span><span class="hl kwd">get</span><span class="hl opt">(</span>questionName<span class="hl opt">)</span>
+      <span class="hl kwa">if</span> <span class="hl opt">(</span>questionMap<span class="hl opt">.</span><span class="hl kwd">get</span><span class="hl opt">(</span>typeOf<span class="hl opt">)):</span>
+        errorHint <span class="hl opt">=</span> questionMap<span class="hl opt">.</span><span class="hl kwd">get</span><span class="hl opt">(</span>typeOf<span class="hl opt">)</span>
+    <span class="hl slc"># fall back to general error messages if a question specific</span>
+    <span class="hl slc"># one does not exist</span>
+    <span class="hl kwa">if</span> <span class="hl opt">(</span>exceptionMap<span class="hl opt">.</span><span class="hl kwd">get</span><span class="hl opt">(</span>typeOf<span class="hl opt">)):</span>
+      errorHint <span class="hl opt">=</span> exceptionMap<span class="hl opt">.</span><span class="hl kwd">get</span><span class="hl opt">(</span>typeOf<span class="hl opt">)</span>
+
+    <span class="hl slc"># dont include the HTML if we have no error hint</span>
+    <span class="hl kwa">if not</span> errorHint<span class="hl opt">:</span>
+      <span class="hl kwa">return</span> <span class="hl str">''</span>
+
+    <span class="hl kwa">for</span> line <span class="hl kwa">in</span> errorHint<span class="hl opt">.</span><span class="hl kwd">split</span><span class="hl opt">(</span><span class="hl str">'</span><span class="hl esc">\n</span><span class="hl str">'</span><span class="hl opt">):</span>
+      self<span class="hl opt">.</span><span class="hl kwd">addMessage</span><span class="hl opt">(</span>line<span class="hl opt">)</span>
+
+  <span class="hl kwa">def</span> <span class="hl kwd">produceOutput</span><span class="hl opt">(</span>self<span class="hl opt">):</span>
+    edxOutput <span class="hl opt">=</span> <span class="hl kwb">open</span><span class="hl opt">(</span><span class="hl str">'edx_response.html'</span><span class="hl opt">,</span> <span class="hl str">'w'</span><span class="hl opt">)</span>
+    edxOutput<span class="hl opt">.</span><span class="hl kwd">write</span><span class="hl opt">(</span><span class="hl str">&quot;&lt;div&gt;&quot;</span><span class="hl opt">)</span>
+
+    <span class="hl slc"># first sum</span>
+    total_possible <span class="hl opt">=</span> <span class="hl kwb">sum</span><span class="hl opt">(</span>self<span class="hl opt">.</span>maxes<span class="hl opt">.</span><span class="hl kwd">values</span><span class="hl opt">())</span>
+    total_score <span class="hl opt">=</span> <span class="hl kwb">sum</span><span class="hl opt">(</span>self<span class="hl opt">.</span>points<span class="hl opt">.</span><span class="hl kwd">values</span><span class="hl opt">())</span>
+    checkOrX <span class="hl opt">=</span> <span class="hl str">'&lt;span class=&quot;incorrect&quot;/&gt;'</span>
+    <span class="hl kwa">if</span> <span class="hl opt">(</span>total_score <span class="hl opt">&gt;=</span> total_possible<span class="hl opt">):</span>
+        checkOrX <span class="hl opt">=</span> <span class="hl str">'&lt;span class=&quot;correct&quot;/&gt;'</span>
+    header <span class="hl opt">=</span> <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">        &lt;h3&gt;</span>
+<span class="hl str">            Total score ({total_score} / {total_possible})</span>
+<span class="hl str">        &lt;/h3&gt;</span>
+<span class="hl str">    &quot;&quot;&quot;</span><span class="hl opt">.</span><span class="hl kwd">format</span><span class="hl opt">(</span>total_score <span class="hl opt">=</span> total_score<span class="hl opt">,</span>
+      total_possible <span class="hl opt">=</span> total_possible<span class="hl opt">,</span>
+      checkOrX <span class="hl opt">=</span> checkOrX
+    <span class="hl opt">)</span>
+    edxOutput<span class="hl opt">.</span><span class="hl kwd">write</span><span class="hl opt">(</span>header<span class="hl opt">)</span>
+
+    <span class="hl kwa">for</span> q <span class="hl kwa">in</span> self<span class="hl opt">.</span>questions<span class="hl opt">:</span>
+      <span class="hl kwa">if</span> <span class="hl kwb">len</span><span class="hl opt">(</span>q<span class="hl opt">) ==</span> <span class="hl num">2</span><span class="hl opt">:</span>
+          name <span class="hl opt">=</span> q<span class="hl opt">[</span><span class="hl num">1</span><span class="hl opt">]</span>
+      <span class="hl kwa">else</span><span class="hl opt">:</span> 
+          name <span class="hl opt">=</span> q
+      checkOrX <span class="hl opt">=</span> <span class="hl str">'&lt;span class=&quot;incorrect&quot;/&gt;'</span>
+      <span class="hl kwa">if</span> <span class="hl opt">(</span>self<span class="hl opt">.</span>points<span class="hl opt">[</span>q<span class="hl opt">] ==</span> self<span class="hl opt">.</span>maxes<span class="hl opt">[</span>q<span class="hl opt">]):</span>
+        checkOrX <span class="hl opt">=</span> <span class="hl str">'&lt;span class=&quot;correct&quot;/&gt;'</span>
+      <span class="hl slc">#messages = '\n&lt;br/&gt;\n'.join(self.messages[q])</span>
+      messages <span class="hl opt">=</span> <span class="hl str">&quot;&lt;pre&gt;%s&lt;/pre&gt;&quot;</span> <span class="hl opt">%</span> <span class="hl str">'</span><span class="hl esc">\n</span><span class="hl str">'</span><span class="hl opt">.</span><span class="hl kwd">join</span><span class="hl opt">(</span>self<span class="hl opt">.</span>messages<span class="hl opt">[</span>q<span class="hl opt">])</span>
+      output <span class="hl opt">=</span> <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">        &lt;div class=&quot;test&quot;&gt;</span>
+<span class="hl str">          &lt;section&gt;</span>
+<span class="hl str">          &lt;div class=&quot;shortform&quot;&gt;</span>
+<span class="hl str">            Question {q} ({points}/{max}) {checkOrX}</span>
+<span class="hl str">          &lt;/div&gt;</span>
+<span class="hl str">        &lt;div class=&quot;longform&quot;&gt;</span>
+<span class="hl str">          {messages}</span>
+<span class="hl str">        &lt;/div&gt;</span>
+<span class="hl str">        &lt;/section&gt;</span>
+<span class="hl str">      &lt;/div&gt;</span>
+<span class="hl str">      &quot;&quot;&quot;</span><span class="hl opt">.</span><span class="hl kwd">format</span><span class="hl opt">(</span>q <span class="hl opt">=</span> name<span class="hl opt">,</span>
+        <span class="hl kwb">max</span> <span class="hl opt">=</span> self<span class="hl opt">.</span>maxes<span class="hl opt">[</span>q<span class="hl opt">],</span>
+        messages <span class="hl opt">=</span> messages<span class="hl opt">,</span>
+        checkOrX <span class="hl opt">=</span> checkOrX<span class="hl opt">,</span>
+        points <span class="hl opt">=</span> self<span class="hl opt">.</span>points<span class="hl opt">[</span>q<span class="hl opt">]</span>
+      <span class="hl opt">)</span>
+      <span class="hl slc"># print &quot;*** output for Question %s &quot; % q[1]</span>
+      <span class="hl slc"># print output</span>
+      edxOutput<span class="hl opt">.</span><span class="hl kwd">write</span><span class="hl opt">(</span>output<span class="hl opt">)</span>
+    edxOutput<span class="hl opt">.</span><span class="hl kwd">write</span><span class="hl opt">(</span><span class="hl str">&quot;&lt;/div&gt;&quot;</span><span class="hl opt">)</span>
+    edxOutput<span class="hl opt">.</span><span class="hl kwd">close</span><span class="hl opt">()</span>
+    edxOutput <span class="hl opt">=</span> <span class="hl kwb">open</span><span class="hl opt">(</span><span class="hl str">'edx_grade'</span><span class="hl opt">,</span> <span class="hl str">'w'</span><span class="hl opt">)</span>
+    edxOutput<span class="hl opt">.</span><span class="hl kwd">write</span><span class="hl opt">(</span><span class="hl kwb">str</span><span class="hl opt">(</span>self<span class="hl opt">.</span>points<span class="hl opt">.</span><span class="hl kwd">totalCount</span><span class="hl opt">()))</span>
+    edxOutput<span class="hl opt">.</span><span class="hl kwd">close</span><span class="hl opt">()</span>
+
+  <span class="hl kwa">def</span> <span class="hl kwd">fail</span><span class="hl opt">(</span>self<span class="hl opt">,</span> message<span class="hl opt">,</span> raw<span class="hl opt">=</span><span class="hl kwa">False</span><span class="hl opt">):</span>
+    <span class="hl str">&quot;Sets sanity check bit to false and outputs a message&quot;</span>
+    self<span class="hl opt">.</span>sane <span class="hl opt">=</span> <span class="hl kwa">False</span>
+    self<span class="hl opt">.</span><span class="hl kwd">assignZeroCredit</span><span class="hl opt">()</span>
+    self<span class="hl opt">.</span><span class="hl kwd">addMessage</span><span class="hl opt">(</span>message<span class="hl opt">,</span> raw<span class="hl opt">)</span>
+
+  <span class="hl kwa">def</span> <span class="hl kwd">assignZeroCredit</span><span class="hl opt">(</span>self<span class="hl opt">):</span>
+    self<span class="hl opt">.</span>points<span class="hl opt">[</span>self<span class="hl opt">.</span>currentQuestion<span class="hl opt">] =</span> <span class="hl num">0</span>
+  
+  <span class="hl kwa">def</span> <span class="hl kwd">addPoints</span><span class="hl opt">(</span>self<span class="hl opt">,</span> amt<span class="hl opt">):</span>
+    self<span class="hl opt">.</span>points<span class="hl opt">[</span>self<span class="hl opt">.</span>currentQuestion<span class="hl opt">] +=</span> amt
+
+  <span class="hl kwa">def</span> <span class="hl kwd">deductPoints</span><span class="hl opt">(</span>self<span class="hl opt">,</span> amt<span class="hl opt">):</span>
+    self<span class="hl opt">.</span>points<span class="hl opt">[</span>self<span class="hl opt">.</span>currentQuestion<span class="hl opt">] -=</span> amt
+
+  <span class="hl kwa">def</span> <span class="hl kwd">assignFullCredit</span><span class="hl opt">(</span>self<span class="hl opt">,</span> message<span class="hl opt">=</span><span class="hl str">&quot;&quot;</span><span class="hl opt">,</span> raw<span class="hl opt">=</span><span class="hl kwa">False</span><span class="hl opt">):</span>
+    self<span class="hl opt">.</span>points<span class="hl opt">[</span>self<span class="hl opt">.</span>currentQuestion<span class="hl opt">] =</span> self<span class="hl opt">.</span>maxes<span class="hl opt">[</span>self<span class="hl opt">.</span>currentQuestion<span class="hl opt">]</span>
+    <span class="hl kwa">if</span> message <span class="hl opt">!=</span> <span class="hl str">&quot;&quot;</span><span class="hl opt">:</span>
+      self<span class="hl opt">.</span><span class="hl kwd">addMessage</span><span class="hl opt">(</span>message<span class="hl opt">,</span> raw<span class="hl opt">)</span>
+
+  <span class="hl kwa">def</span> <span class="hl kwd">addMessage</span><span class="hl opt">(</span>self<span class="hl opt">,</span> message<span class="hl opt">,</span> raw<span class="hl opt">=</span><span class="hl kwa">False</span><span class="hl opt">):</span>
+    <span class="hl kwa">if not</span> raw<span class="hl opt">:</span>
+        <span class="hl slc"># We assume raw messages, formatted for HTML, are printed separately</span>
+        <span class="hl kwa">if</span> self<span class="hl opt">.</span>mute<span class="hl opt">:</span> util<span class="hl opt">.</span><span class="hl kwd">unmutePrint</span><span class="hl opt">()</span>      
+        <span class="hl kwa">print</span> <span class="hl str">'*** '</span> <span class="hl opt">+</span> message
+        <span class="hl kwa">if</span> self<span class="hl opt">.</span>mute<span class="hl opt">:</span> util<span class="hl opt">.</span><span class="hl kwd">mutePrint</span><span class="hl opt">()</span>        
+        message <span class="hl opt">=</span> cgi<span class="hl opt">.</span><span class="hl kwd">escape</span><span class="hl opt">(</span>message<span class="hl opt">)</span>
+    self<span class="hl opt">.</span>messages<span class="hl opt">[</span>self<span class="hl opt">.</span>currentQuestion<span class="hl opt">].</span><span class="hl kwd">append</span><span class="hl opt">(</span>message<span class="hl opt">)</span>
+
+  <span class="hl kwa">def</span> <span class="hl kwd">addMessageToEmail</span><span class="hl opt">(</span>self<span class="hl opt">,</span> message<span class="hl opt">):</span>
+    <span class="hl kwa">print</span> <span class="hl str">&quot;WARNING**** addMessageToEmail is deprecated %s&quot;</span> <span class="hl opt">%</span> message
+    <span class="hl kwa">for</span> line <span class="hl kwa">in</span> message<span class="hl opt">.</span><span class="hl kwd">split</span><span class="hl opt">(</span><span class="hl str">'</span><span class="hl esc">\n</span><span class="hl str">'</span><span class="hl opt">):</span>
+      <span class="hl kwa">pass</span>
+      <span class="hl slc">#print '%%% ' + line + ' %%%'</span>
+      <span class="hl slc">#self.messages[self.currentQuestion].append(line)</span>
+
+
+
+
+
+<span class="hl kwa">class</span> <span class="hl kwd">Counter</span><span class="hl opt">(</span><span class="hl kwb">dict</span><span class="hl opt">):</span>
+  <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">  Dict with default 0</span>
+<span class="hl str">  &quot;&quot;&quot;</span>
+  <span class="hl kwa">def</span> <span class="hl kwd">__getitem__</span><span class="hl opt">(</span>self<span class="hl opt">,</span> idx<span class="hl opt">):</span>
+    <span class="hl kwa">try</span><span class="hl opt">:</span>
+      <span class="hl kwa">return</span> <span class="hl kwb">dict</span><span class="hl opt">.</span><span class="hl kwd">__getitem__</span><span class="hl opt">(</span>self<span class="hl opt">,</span> idx<span class="hl opt">)</span>
+    <span class="hl kwa">except</span> <span class="hl kwc">KeyError</span><span class="hl opt">:</span>
+      <span class="hl kwa">return</span> <span class="hl num">0</span>
+
+  <span class="hl kwa">def</span> <span class="hl kwd">totalCount</span><span class="hl opt">(</span>self<span class="hl opt">):</span>
+    <span class="hl str">&quot;&quot;&quot;</span>
+<span class="hl str">    Returns the sum of counts for all keys.</span>
+<span class="hl str">    &quot;&quot;&quot;</span>
+    <span class="hl kwa">return</span> <span class="hl kwb">sum</span><span class="hl opt">(</span>self<span class="hl opt">.</span><span class="hl kwd">values</span><span class="hl opt">())</span>
+
+</pre>
+</body>
+</html>
+<!--HTML generated by highlight 3.8, http://www.andre-simon.de/-->
