@@ -13,8 +13,9 @@
 # Pieter Abbeel (pabbeel@cs.berkeley.edu).
 
 
-import util
 import classificationMethod
+import util
+
 
 class MostFrequentClassifier(classificationMethod.ClassificationMethod):
     """
@@ -22,6 +23,7 @@ class MostFrequentClassifier(classificationMethod.ClassificationMethod):
     every test instance presented to it, the classifier returns
     the label that was seen most often in the training data.
     """
+
     def __init__(self, legalLabels):
         self.guess = None
         self.type = "mostfrequent"

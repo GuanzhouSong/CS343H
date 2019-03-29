@@ -15,7 +15,9 @@
 
 # Perceptron implementation
 import util
+
 PRINT = True
+
 
 class PerceptronClassifier:
     """
@@ -24,19 +26,22 @@ class PerceptronClassifier:
     Note that the variable 'datum' in this code refers to a counter of features
     (not to a raw samples.Datum).
     """
-    def __init__( self, legalLabels, max_iterations):
+
+    def __init__(self, legalLabels, max_iterations):
         self.legalLabels = legalLabels
         self.type = "perceptron"
         self.max_iterations = max_iterations
         self.weights = {}
         for label in legalLabels:
-            self.weights[label] = util.Counter() # this is the data-structure you should use
+            self.weights[
+                label] = util.Counter()  # this is the data-structure you should use
 
     def setWeights(self, weights):
         assert len(weights) == len(self.legalLabels);
         self.weights = weights;
 
-    def train( self, trainingData, trainingLabels, validationData, validationLabels ):
+    def train(self, trainingData, trainingLabels, validationData,
+        validationLabels):
         """
         The training loop for the perceptron passes through the training data several
         times and updates the weight vector for each label based on classification errors.
@@ -48,33 +53,34 @@ class PerceptronClassifier:
         (and thus represents a vector a values).
         """
 
-        self.features = trainingData[0].keys() # could be useful later
+        self.features = trainingData[0].keys()  # could be useful later
         # DO NOT ZERO OUT YOUR WEIGHTS BEFORE STARTING TRAINING, OR
         # THE AUTOGRADER WILL LIKELY DEDUCT POINTS.
 
         for iteration in range(self.max_iterations):
-            print "Starting iteration ", iteration, "..."
-	    #if iteration==0:
-	#	for label in self.weights:
-	#	    self.weights[label]=util.Counter()
+            print
+            "Starting iteration ", iteration, "..."
+            # if iteration==0:
+            #	for label in self.weights:
+            #	    self.weights[label]=util.Counter()
             for i in range(len(trainingData)):
                 "*** YOUR CODE HERE ***"
-	#	print self.weights
-		trainingDatum=trainingData[i]
-		trainingLabel=trainingLabels[i]
-		score=util.Counter()
-		for l in self.legalLabels:
-		    score[l]=self.weights[l]*trainingDatum
-		predictedLabel=score.argMax()
-		if predictedLabel!=trainingLabel:
-		    #print "this calls"
-		    f=trainingDatum.totalCount()
-		   # print "this calls",f
-		    self.weights[predictedLabel]-=trainingDatum
-		    self.weights[trainingLabel]+=trainingDatum
-                #util.raiseNotDefined()
+                #	print self.weights
+                trainingDatum = trainingData[i]
+                trainingLabel = trainingLabels[i]
+                score = util.Counter()
+                for l in self.legalLabels:
+                    score[l] = self.weights[l] * trainingDatum
+                predictedLabel = score.argMax()
+                if predictedLabel != trainingLabel:
+                    # print "this calls"
+                    f = trainingDatum.totalCount()
+                    # print "this calls",f
+                    self.weights[predictedLabel] -= trainingDatum
+                    self.weights[trainingLabel] += trainingDatum
+                # util.raiseNotDefined()
 
-    def classify(self, data ):
+    def classify(self, data):
         """
         Classifies each datum as the label that most closely matches the prototype vector
         for that label.  See the project description for details.
@@ -89,7 +95,6 @@ class PerceptronClassifier:
             guesses.append(vectors.argMax())
         return guesses
 
-
     def findHighWeightFeatures(self, label):
         """
         Returns a list of the 100 features with the greatest weight for some label
@@ -97,10 +102,10 @@ class PerceptronClassifier:
         featuresWeights = []
 
         "*** YOUR CODE HERE ***"
-	weight=self.weights[label]
-	features=weight.sortedKeys()
-	for i in range(0,100):
-	    featuresWeights.append(features[i])
-        #util.raiseNotDefined()
+        weight = self.weights[label]
+        features = weight.sortedKeys()
+        for i in range(0, 100):
+            featuresWeights.append(features[i])
+        # util.raiseNotDefined()
 
         return featuresWeights

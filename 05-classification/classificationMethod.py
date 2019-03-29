@@ -27,6 +27,7 @@ class ClassificationMethod:
     all of your implementation code in the files for the individual
     classification methods listed above.
     """
+
     def __init__(self, legalLabels):
         """
         For digits dataset, the set of legal labels will be 0,1,..,9
@@ -34,8 +35,8 @@ class ClassificationMethod:
         """
         self.legalLabels = legalLabels
 
-
-    def train(self, trainingData, trainingLabels, validationData, validationLabels):
+    def train(self, trainingData, trainingLabels, validationData,
+        validationLabels):
         """
         This is the supervised training function for the classifier.  Two sets of
         labeled data are passed in: a large training set and a small validation set.
